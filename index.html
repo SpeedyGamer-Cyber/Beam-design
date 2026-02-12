@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Beam Design — LR</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- MathJax for LaTeX rendering (step-by-step calculations) -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$','$$']], packages: {'[+]': ['ams']} },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <div class="brand">
+        <img class="brand__logo" src="assets/logo.png" alt="LR" />
+        <div class="brand__text">
+          <div class="brand__title">Beam Design</div>
+          <div class="brand__subtitle">EN 1992-1-1: 2004</div>
+        </div>
+      </div>
+
+      <div class="topbar__actions">
+        <button id="btnTheme" class="iconbtn" type="button" title="Toggle light/dark mode" aria-label="Toggle theme">
+          <span class="icon" aria-hidden="true">☼</span>
+          <span class="label">Theme</span>
+        </button>
+        <button id="btnPrint" class="iconbtn" type="button" title="Print" aria-label="Print">
+          <span class="icon" aria-hidden="true">⎙</span>
+          <span class="label">Print</span>
+        </button>
+        <button id="btnReset" class="iconbtn iconbtn--ghost" type="button" title="Reset" aria-label="Reset">
+          <span class="icon" aria-hidden="true">↺</span>
+          <span class="label">Reset</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="stack">
+      <!-- INPUTS -->
+      <section class="card" aria-labelledby="inputsTitle">
+        <div class="card__header">
+          <h2 id="inputsTitle">Inputs</h2>
+          <p class="muted">Enter material, geometry and reinforcement details. Units are shown in each field.</p>
+        </div>
+
+        <form id="beamForm" class="form" autocomplete="off">
+          <div class="form__section">
+            <h3>Material parameters</h3>
+            <div class="form__grid">
+              <label class="field">
+                <span class="field__label">$f_{ck}$ <span class="unit">(MPa)</span></span>
+                <input name="fck" type="number" step="1" min="12" max="90" value="30" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$f_{yk}$ <span class="unit">(MPa)</span></span>
+                <input name="fyk" type="number" step="10" min="200" max="700" value="500" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$\gamma_c$</span>
+                <input name="gamma_c" type="number" step="0.01" min="1.0" max="2.0" value="1.50" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$\gamma_s$</span>
+                <input name="gamma_s" type="number" step="0.01" min="1.0" max="2.0" value="1.15" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$\alpha_{cc}$ (bending)</span>
+                <input name="alpha_cc" type="number" step="0.01" min="0.5" max="1.2" value="1.00" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$\alpha_{cc,s}$ (shear)</span>
+                <input name="alpha_cc_s" type="number" step="0.01" min="0.5" max="1.2" value="1.00" required />
+              </label>
+            </div>
+          </div>
+
+          <div class="form__section">
+            <h3>Geometry & actions</h3>
+            <div class="form__grid">
+              <label class="field">
+                <span class="field__label">Beam width, $b$ <span class="unit">(mm)</span></span>
+                <input name="b" type="number" step="1" min="100" value="300" required />
+              </label>
+              <label class="field">
+                <span class="field__label">Beam height, $h$ <span class="unit">(mm)</span></span>
+                <input name="h" type="number" step="1" min="150" value="600" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$M_{Ed}$ <span class="unit">(kN·m)</span></span>
+                <input name="MEd" type="number" step="0.1" min="0" value="180" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$V_{Ed}$ <span class="unit">(kN)</span></span>
+                <input name="VEd" type="number" step="0.1" min="0" value="120" required />
+              </label>
+              <label class="field">
+                <span class="field__label">$N_{Ed}$ (compression +) <span class="unit">(kN)</span></span>
+                <input name="NEd" type="number" step="0.1" value="0" />
+              </label>
+              <label class="field">
+                <span class="field__label">Redistribution, $\delta$ <span class="unit">(0.70–1.00)</span></span>
+                <input name="delta" type="number" step="0.01" min="0.70" max="1.00" value="0.85" required />
+              </label>
+            </div>
+          </div>
+
+          <div class="form__section">
+            <h3>Cover & shear reinforcement</h3>
+            <div class="form__grid">
+              <label class="field">
+                <span class="field__label">Tension cover, $c_t$ <span class="unit">(mm)</span></span>
+                <input name="ct" type="number" step="1" min="10" value="35" required />
+              </label>
+              <label class="field">
+                <span class="field__label">Compression cover, $c_c$ <span class="unit">(mm)</span></span>
+                <input name="cc" type="number" step="1" min="10" value="35" required />
+              </label>
+              <label class="field">
+                <span class="field__label">Stirrup dia, $\varphi_s$ <span class="unit">(mm)</span></span>
+                <input name="phi_s" type="number" step="1" min="6" value="10" required />
+              </label>
+              <label class="field">
+                <span class="field__label">Number of legs, $n_l$</span>
+                <input name="n_l" type="number" step="1" min="2" value="2" required />
+              </label>
+              <label class="field">
+                <span class="field__label">Angle, $\alpha$ <span class="unit">(deg)</span></span>
+                <input name="alpha" type="number" step="1" min="45" max="90" value="90" required />
+              </label>
+            </div>
+          </div>
+
+          <div class="form__section">
+            <div class="sectionHeader">
+              <h3>Tension reinforcement layers</h3>
+              <button id="addTensionRow" class="btn btn--small" type="button">+ Add layer</button>
+            </div>
+            <div class="tableWrap">
+              <table class="table" aria-label="Tension reinforcement">
+                <thead>
+                  <tr>
+                    <th>Layer</th>
+                    <th>$\varphi_{t,i}$ (mm)</th>
+                    <th>$n_i$</th>
+                    <th>$s_{t,i}$ to next (mm)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tensionBody"></tbody>
+              </table>
+            </div>
+            <div class="hint muted">Note: spacing to next layer is ignored for the last layer.</div>
+          </div>
+
+          <div class="form__section">
+            <div class="sectionHeader">
+              <h3>Compression reinforcement layers</h3>
+              <button id="addCompressionRow" class="btn btn--small" type="button">+ Add layer</button>
+            </div>
+            <div class="tableWrap">
+              <table class="table" aria-label="Compression reinforcement">
+                <thead>
+                  <tr>
+                    <th>Layer</th>
+                    <th>$\varphi_{c,i}$ (mm)</th>
+                    <th>$n_{c,i}$</th>
+                    <th>$s_{c,i}$ to next (mm)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="compressionBody"></tbody>
+              </table>
+            </div>
+            <div class="hint muted">Compression steel is only required for double-reinforced design, but you can enter provided bars for checking.</div>
+          </div>
+
+          <div class="form__footer">
+            <button id="btnCalc" class="btn" type="submit">Calculate</button>
+            <div id="status" class="status" role="status" aria-live="polite"></div>
+          </div>
+        </form>
+      </section>
+
+      <!-- SUMMARY (moved below inputs) -->
+      <section class="card" aria-labelledby="summaryTitle">
+        <div class="card__header">
+          <h2 id="summaryTitle">Summary of results</h2>
+          <p class="muted">Key design outputs and checks (bending & shear).</p>
+        </div>
+        <div id="summary" class="summary">
+          <div class="empty">
+            <div class="empty__icon">📐</div>
+            <div class="empty__text">
+              <div class="empty__title">No results yet</div>
+              <div class="muted">Fill inputs and click <b>Calculate</b>.</div>
+            </div>
+          </div>
+        </div>
+        <div class="card__footer">
+          <div class="muted small">Tip: Use Print to generate a PDF report with the detailed calculations.</div>
+        </div>
+      </section>
+
+      <!-- DETAILED CALCULATIONS -->
+      <section class="card" aria-labelledby="detailsTitle">
+        <div class="card__header">
+          <h2 id="detailsTitle">Detailed calculation</h2>
+        </div>
+        <div id="details" class="details"></div>
+      </section>
+
+      <footer class="footer">
+        <div class="muted">LR Beam Design Web App</div>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
