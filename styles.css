@@ -57,8 +57,8 @@ body{
 .topbar__inner{display:flex; align-items:center; justify-content:space-between; gap:16px;}
 .brand{display:flex; align-items:center; gap:12px;}
 .brand__logo{width:50px; height:50px; object-fit:contain; border-radius: 10px; background: var(--surface-2); padding:7px; border:1px solid var(--border);}
-.brand__title{font-size: 18px; font-weight: 760; letter-spacing: 0.2px;}
-.brand__subtitle{font-size: 12px; color: var(--muted); margin-top:2px;}
+.brand__title{font-size: 22px; font-weight: 760; letter-spacing: 0.2px;}
+.brand__subtitle{font-size: 16px; font-weight: 500; color: var(--muted); margin-top:2px;}
 
 .topbar__actions{display:flex; gap:10px; align-items:center;}
 .iconbtn{
@@ -141,6 +141,33 @@ input:focus{border-color: rgba(37,99,235,0.55); box-shadow: 0 0 0 3px rgba(37,99
 .form__footer{display:flex; align-items:center; gap: 12px; padding-top: 12px;}
 .status{font-size: 12px; color: var(--muted);}
 
+/* ---------- Cross-section plot ---------- */
+.plotWrap{
+  padding: 12px 14px 14px;
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px){
+  .plotWrap{grid-template-columns: 1fr;}
+}
+#sectionCanvas{
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.plotInfo{
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  white-space: pre-line;
+  line-height: 1.45;
+}
+
 .summary{padding: 12px 14px 14px; display:grid; gap: 12px;}
 
 .kpiGrid{display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;}
@@ -179,11 +206,31 @@ input:focus{border-color: rgba(37,99,235,0.55); box-shadow: 0 0 0 3px rgba(37,99
 .empty__icon{font-size: 22px;}
 .empty__title{font-weight: 800;}
 
-.footer{padding: 18px 0 8px; text-align:center;}
+.footer{padding: 18px 0 8px; text-align:left;}
 
 @media print{
-  .topbar, #btnCalc, #btnReset, #btnTheme, #btnPrint, .rowbtn, .btn--small { display:none !important; }
+  /* Show title bar on first page */
+  .topbar{
+    display:block !important;
+    position: static !important;   /* avoid any sticky/print oddities */
+    top:auto !important;
+    border-bottom: 1px solid #d1d5db;
+    background: white !important;
+  }
+
+  /* Hide interactive controls (including buttons inside the topbar) */
+  .topbar__actions,
+  #btnCalc, #btnReset, #btnTheme, #btnPrint,
+  .rowbtn, .btn--small{
+    display:none !important;
+  }
+
   body{background:white; color:black;}
   .card{box-shadow:none; border: 1px solid #d1d5db;}
   .container{max-width: 100%; padding: 0;}
 }
+
+
+
+
+

@@ -36,6 +36,9 @@
 
   const rad = (deg) => deg * Math.PI / 180;
 
+  // Keep latest results for re-drawing the section plot on resize
+  let lastResults = null;
+
   // ---------- Dynamic layer tables ----------
   function makeRow(kind, idx, values={}){
     const isT = kind === 'tension';
@@ -128,8 +131,8 @@
       Ai.push(A);
       addStep('Effective depths', `Tension layer ${i+1}: $y_${i+1}$ and $A_${i+1}$`,
         String.raw`$$y_i = c_t + \varphi_s + \frac{\varphi_{t,i}}{2} + \sum_{k=1}^{i-1}(\varphi_{t,k}+s_{t,k})$$
-$$A_i = n_i\,\frac{\pi\,\varphi_{t,i}^2}{4}$$`,
-        `y_${i+1} = ${ct} + ${phi_s} + ${tension[i].phi}/2 + ${fmt(sumPrev,2)} = ${fmt(y,2)}\,\text{mm}\nA_${i+1} = ${tension[i].n}\,\pi\,${tension[i].phi}^2/4 = ${fmt(A,2)}\,\text{mm}^2`
+$$A_i = n_i \frac{\pi \varphi_{t,i}^2}{4}$$`,
+        `y_${i+1} = ${ct} + ${phi_s} + ${tension[i].phi}/2 + ${fmt(sumPrev,2)} = ${fmt(y,2)} mm \nA_${i+1} = ${tension[i].n} \pi ${tension[i].phi}^2/4 = ${fmt(A,2)} mm²`
       );
     }
     const As_prov = Ai.reduce((a,b)=>a+b,0);
@@ -137,7 +140,7 @@ $$A_i = n_i\,\frac{\pi\,\varphi_{t,i}^2}{4}$$`,
     const d = h - ybar_t;
     addStep('Effective depths', 'Centroid of tension steel & effective depth $d$',
       String.raw`$$d = h - \frac{\sum_{i=1}^{m}A_i\,y_i}{\sum_{i=1}^{m}A_i}$$`,
-      `\sum A_i = ${fmt(As_prov,2)}\,\text{mm}^2\n\sum A_i y_i = ${fmt(Ai.reduce((s,A,i)=>s+A*yi[i],0),2)}\nd = ${h} - (${fmt(ybar_t,2)}) = ${fmt(d,2)}\,\text{mm}`
+      `\sum A_i = ${fmt(As_prov,2)} mm²\n\sum A_i y_i = ${fmt(Ai.reduce((s,A,i)=>s+A*yi[i],0),2)}\nd = ${h} - (${fmt(ybar_t,2)}) = ${fmt(d,2)} mm`
     );
 
     // ---------- Effective depth (compression) ----------
@@ -156,14 +159,14 @@ $$A_i = n_i\,\frac{\pi\,\varphi_{t,i}^2}{4}$$`,
       addStep('Effective depths', `Compression layer ${i+1}: $y_{c,${i+1}}$ and $A_{c,${i+1}}$`,
         String.raw`$$y_{c,i} = c_c + \varphi_s + \frac{\varphi_{c,i}}{2} + \sum_{k=1}^{i-1}(\varphi_{c,k}+s_{c,k})$$
 $$A_{c,i} = n_{c,i}\,\frac{\pi\,\varphi_{c,i}^2}{4}$$`,
-        `y_{c,${i+1}} = ${cc} + ${phi_s} + ${compression[i].phi}/2 + ${fmt(sumPrev,2)} = ${fmt(y,2)}\,\text{mm}\nA_{c,${i+1}} = ${compression[i].n}\,\pi\,${compression[i].phi}^2/4 = ${fmt(A,2)}\,\text{mm}^2`
+        `y_{c,${i+1}} = ${cc} + ${phi_s} + ${compression[i].phi}/2 + ${fmt(sumPrev,2)} = ${fmt(y,2)} mm \nA_{c,${i+1}} = ${compression[i].n} \pi ${compression[i].phi}^2/4 = ${fmt(A,2)} mm²`
       );
     }
     const As2_prov = Aci.reduce((a,b)=>a+b,0);
     const d2 = As2_prov > 0 ? (Aci.reduce((s, A, i)=> s + A*yci[i], 0) / As2_prov) : (cc + phi_s + 8);
     addStep('Effective depths', 'Centroid of compression steel $d_2$',
       String.raw`$$d_2 = \frac{\sum_{i=1}^{n}A_{c,i}\,y_{c,i}}{\sum_{i=1}^{n}A_{c,i}}$$`,
-      As2_prov>0 ? `\sum A_{c,i}=${fmt(As2_prov,2)}\,\text{mm}^2\nd_2=${fmt(d2,2)}\,\text{mm}` : `No compression bars entered (or n=0). Using fallback d_2≈${fmt(d2,2)} mm.`
+      As2_prov>0 ? `\sum A_{c,i}=${fmt(As2_prov,2)} mm²\nd_2=${fmt(d2,2)} mm` : `No compression bars entered (or n=0). Using fallback d_2≈${fmt(d2,2)} mm.`
     );
 
     // ---------- Strain limit eps_cu3 (fixed MathJax cases formatting) ----------
@@ -247,7 +250,9 @@ $$K' = \eta\,\frac{\alpha_{cc}}{\gamma_c}\,\left(\lambda\frac{\delta-0.4}{k_2}\r
 
       const sqrtTerm = Math.sqrt(inner);
       z = (d/2)*(1 + sqrtTerm);
-      z = Math.min(z, 0.95*d);
+      const z_raw = z;
+      const z_lim = 0.95*d;
+      if (inputs.limitZ95) z = Math.min(z, z_lim);      
       As2_req = 0;
       As_req = MEd/(fyd*z);
 
@@ -256,9 +261,11 @@ $$K' = \eta\,\frac{\alpha_{cc}}{\gamma_c}\,\left(\lambda\frac{\delta-0.4}{k_2}\r
         `K=${fmt(K,5)}; K'=${fmt(Kp,5)} → ${flexureType}`
       );
       addStep('Flexure', 'Lever arm $z$ (single reinforced)',
-        String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K}{\eta\alpha_{cc}}}\right]\le 0.95d$$`,
-        `z = ${fmt(z,2)} mm`
+        inputs.limitZ95 ? String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K}{\eta\alpha_{cc}}}\right]\le 0.95d$$` :
+          String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K}{\eta\alpha_{cc}}}\right]$$`,
+        inputs.limitZ95 ? `z_raw = ${fmt(z_raw,2)} mm, 0.95d = ${fmt(z_lim,2)} mm → adopted z = ${fmt(z,2)} mm` : `z = ${fmt(z,2)} mm`
       );
+
       addStep('Flexure', 'Required tension steel $A_s$',
         String.raw`$$A_s=\frac{M_{Ed}}{f_{yd}z}$$`,
         `A_s=${fmt(As_req,2)} mm²`
@@ -276,7 +283,10 @@ $$K' = \eta\,\frac{\alpha_{cc}}{\gamma_c}\,\left(\lambda\frac{\delta-0.4}{k_2}\r
 
       const sqrtTerm = Math.sqrt(inner);
       z = (d/2)*(1 + sqrtTerm);
-      xu = d*(delta - 0.4)/k2;
+      const z_raw = z;
+      const z_lim = 0.95*d;
+      if (inputs.limitZ95) z = Math.min(z, z_lim);
+      xu = d*(delta - 0.4)/k2;      
       fsc = 700*(xu - d2)/xu;
       fsc = Math.min(fsc, fyd);
       As2_req = ((K - Kp)*fck*b*d*d)/(fsc*(d - d2));
@@ -287,9 +297,11 @@ $$K' = \eta\,\frac{\alpha_{cc}}{\gamma_c}\,\left(\lambda\frac{\delta-0.4}{k_2}\r
         `K=${fmt(K,5)}; K'=${fmt(Kp,5)} → ${flexureType}`
       );
       addStep('Flexure', "Lever arm $z$ (double reinforced uses $K'$)",
-        String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K'}{\eta\alpha_{cc}}}\right]$$`,
-        `z = ${fmt(z,2)} mm`
+        inputs.limitZ95 ? String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K'}{\eta\alpha_{cc}}}\right]\le 0.95d$$` :
+          String.raw`$$z=\frac{d}{2}\left[1+\sqrt{1-\frac{3K'}{\eta\alpha_{cc}}}\right]$$`,
+        inputs.limitZ95 ? `z_raw = ${fmt(z_raw,2)} mm, 0.95d = ${fmt(z_lim,2)} mm → adopted z = ${fmt(z,2)} mm` : `z = ${fmt(z,2)} mm`
       );
+      
       addStep('Flexure', 'Neutral axis depth $x_u$',
         String.raw`$$x_u=\frac{d(\delta-0.4)}{k_2}$$`,
         `x_u=${fmt(xu,2)} mm`
@@ -387,12 +399,12 @@ $$\cot\theta=\frac{1\pm\sqrt{1-4W(W-\cot\alpha)}}{2W}$$`,
 
     addStep('Shear', 'Required shear reinforcement $A_{sw}/s$',
       String.raw`$$\frac{A_{sw}}{s}=\frac{V_{Ed}}{z f_{yd}(\cot\theta+\cot\alpha)\sin\alpha}$$`,
-      shearOK ? `Case: ${shearCase}\nA_{sw}/s=${fmt(Asw_s_final,5)} mm²/mm` : `Case: ${shearCase}`
+      shearOK ? `Case: ${shearCase}\nA_{sw}/s=${fmt(Asw_s_req,5)} mm²/mm` : `Case: ${shearCase}`
     );
 
     addStep('Shear', 'Minimum shear reinforcement check',
       String.raw`$$\frac{A_{sw,min}}{s}=0.08\frac{\sqrt{f_{ck}}}{f_{yk}}b\sin\alpha$$`,
-      `A_{sw,min}/s=${fmt(Aswmin_s,5)} mm²/mm`
+      `A_{sw,min}/s=${fmt(Aswmin_s,5)} mm²/mm ; A_{sw}/s=${fmt(Asw_s_final,5)} mm²/mm`
     );
 
     let deltaAs = 0;
@@ -513,6 +525,7 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
       },
       limits: { As_min, As_max, minOk, maxOkT, maxOkC },
       provided: { As_prov, As2_prov, As_total_req, flexureCheck, compCheck },
+      section: { b, h, ct, cc, phi_s, n_l, coverSide, yi, Ai, yci, Aci, ybar_t },
       steps
     };
   }
@@ -629,6 +642,181 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
     typesetMath(details);
   }
 
+  // ---------- Cross-section plot ----------
+  function renderSectionPlot(r){
+    const canvas = $('#sectionCanvas');
+    const info = $('#sectionInfo');
+    if (!canvas || !info) return;
+
+    // Clear when no results
+    if (!r){
+      const ctx0 = canvas.getContext('2d');
+      ctx0.clearRect(0,0,canvas.width,canvas.height);
+      info.textContent = '';
+      return;
+    }
+
+    // Resize canvas to match displayed size for crisp drawing
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(300, rect.width || canvas.width);
+    const cssH = Math.max(240, rect.height || canvas.height);
+    const W = Math.round(cssW * dpr);
+    const H = Math.round(cssH * dpr);
+    if (canvas.width !== W || canvas.height !== H){
+      canvas.width = W;
+      canvas.height = H;
+    }
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    const { b, h, ct, cc, phi_s, n_l, coverSide, yi, yci } = r.section;
+    const tension = r.inputs.tension;
+    const compression = r.inputs.compression;
+
+    // Layout
+    const pad = 38;
+    const dimPad = 34;
+    const drawW = (rect.width || 980) - pad*2 - dimPad;
+    const drawH = (rect.height || 560) - pad*2 - dimPad;
+
+    const scale = Math.min(drawW / b, drawH / h);
+    const secW = b * scale;
+    const secH = h * scale;
+    const x0 = pad + (drawW - secW)/2;
+    const y0 = pad + (drawH - secH)/2;
+
+    // Helpers
+    const line = (x1,y1,x2,y2, w=1, col='rgba(15,23,42,0.85)') => {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+    };
+    const txt = (t,x,y, align='left', base='alphabetic', col='rgba(15,23,42,0.85)', font='12px var(--sans)') => {
+      ctx.fillStyle = col;
+      ctx.font = font;
+      ctx.textAlign = align;
+      ctx.textBaseline = base;
+      ctx.fillText(t,x,y);
+    };
+    const circle = (cx,cy,r, fill='#2563eb', stroke='rgba(255,255,255,0.95)') => {
+      ctx.beginPath();
+      ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+    };
+
+    // Clear
+    ctx.clearRect(0,0,cssW, cssH);
+
+    // Section outline
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillRect(x0,y0,secW,secH);
+    line(x0,y0, x0+secW,y0, 2);
+    line(x0+secW,y0, x0+secW,y0+secH, 2);
+    line(x0+secW,y0+secH, x0,y0+secH, 2);
+    line(x0,y0+secH, x0,y0, 2);
+
+    // Stirrups (schematic) – side cover assumed = max(ct,cc)
+    const stirOff = (coverSide + phi_s/2) * scale;
+    const sx = x0 + stirOff;
+    const sy = y0 + stirOff;
+    const sw = secW - 2*stirOff;
+    const sh = secH - 2*stirOff;
+    ctx.setLineDash([6,4]);
+    line(sx,sy, sx+sw,sy, 1.5, 'rgba(37,99,235,0.7)');
+    line(sx+sw,sy, sx+sw,sy+sh, 1.5, 'rgba(37,99,235,0.7)');
+    line(sx+sw,sy+sh, sx,sy+sh, 1.5, 'rgba(37,99,235,0.7)');
+    line(sx,sy+sh, sx,sy, 1.5, 'rgba(37,99,235,0.7)');
+    ctx.setLineDash([]);
+
+    // Bars: distribute across width
+    const barXPositions = (n, phi) => {
+      const off = (coverSide + phi_s + phi/2);
+      const xMin = x0 + off * scale;
+      const xMax = x0 + secW - off * scale;
+      if (n <= 1) return [ (xMin + xMax)/2 ];
+      const dx = (xMax - xMin) / (n - 1);
+      return Array.from({length:n}, (_,i)=> xMin + i*dx);
+    };
+
+    // Tension layers (from bottom): y_top = h - y_i
+    tension.forEach((ly, i) => {
+      const y = yi[i];
+      const yTop = y0 + (h - y) * scale;
+      const xs = barXPositions(ly.n, ly.phi);
+      const rr = Math.max(2.5, (ly.phi/2) * scale);
+      xs.forEach(x => circle(x, yTop, rr, '#2563eb'));
+      txt(`y${i+1}=${fmt(y,1)} mm`, x0 + secW + 10, yTop + 10, 'left', 'middle', 'rgba(15,23,42,0.75)');
+    });
+
+    // Compression layers (from top): y_top = y_c,i
+    compression.forEach((ly, i) => {
+      const y = yci[i];
+      const yTop = y0 + y * scale;
+      const xs = barXPositions(ly.n, ly.phi);
+      const rr = Math.max(2.5, (ly.phi/2) * scale);
+      xs.forEach(x => circle(x, yTop, rr, '#16a34a'));
+      txt(`yc${i+1}=${fmt(y,1)} mm`, x0 + secW + 10, yTop + 4, 'left', 'middle', 'rgba(15,23,42,0.75)');
+    });
+
+    // Dimension lines: b and h
+    const dimCol = 'rgba(15,23,42,0.75)';
+    const arrow = (x1,y1,x2,y2) => {
+      line(x1,y1,x2,y2,1.2,dimCol);
+      const ang = Math.atan2(y2-y1,x2-x1);
+      const ah = 6;
+      const a1 = ang + Math.PI*0.85;
+      const a2 = ang - Math.PI*0.85;
+      line(x2,y2, x2 + ah*Math.cos(a1), y2 + ah*Math.sin(a1), 1.2, dimCol);
+      line(x2,y2, x2 + ah*Math.cos(a2), y2 + ah*Math.sin(a2), 1.2, dimCol);
+    };
+
+    // b at bottom
+    const yB = y0 + secH + 24;
+    arrow(x0, yB, x0+secW, yB);
+    arrow(x0+secW, yB, x0, yB);
+    txt(`b = ${fmt(b,0)} mm`, x0 + secW/2, yB - 6, 'center', 'bottom', dimCol, '12px var(--sans)');
+
+    // h at left
+    const xL = x0 - 24;
+    arrow(xL, y0+secH, xL, y0);
+    arrow(xL, y0, xL, y0+secH);
+    txt(`h = ${fmt(h,0)} mm`, xL - 8, y0 + secH/2, 'right', 'middle', dimCol, '12px var(--sans)');    
+
+    // Legend
+    txt('Tension bars', x0 - 150, y0 + 16, 'left', 'middle', 'rgba(37,99,235,0.9)', '12px var(--sans)');
+    txt('Compression bars', x0 - 150, y0 + 34, 'left', 'middle', 'rgba(22,163,74,0.9)', '12px var(--sans)');
+    txt('Stirrups (schematic)', x0 - 150, y0 + 52, 'left', 'middle', 'rgba(37,99,235,0.7)', '12px var(--sans)');
+
+    // Info panel
+    const lines = [];
+    lines.push(`Section: b=${fmt(b,0)} mm, h=${fmt(h,0)} mm`);
+    lines.push(`Covers: ct=${fmt(ct,0)} mm (tension), cc=${fmt(cc,0)} mm (compression)`);
+    lines.push(`Links: φs=${fmt(phi_s,0)} mm, legs n_l=${fmt(n_l,0)} (side cover assumed = max(ct,cc)=${fmt(coverSide,0)} mm)`);
+    lines.push(`Effective depth: d=${fmt(r.flexure.d,1)} mm, compression depth d2=${fmt(r.flexure.d2,1)} mm`);
+
+    const tDesc = tension.map((ly,i)=>`T${i+1}: ${ly.n}Ø${ly.phi} @ y${i+1}=${fmt(yi[i],1)} mm`).join('\n');
+    const cDesc = compression.length ? compression.map((ly,i)=>`C${i+1}: ${ly.n}Ø${ly.phi} @ yc${i+1}=${fmt(yci[i],1)} mm`).join('\n') : '—';
+    lines.push('');
+    lines.push('Tension layers:');
+    lines.push(tDesc || '—');
+    lines.push('');
+    lines.push('Compression layers:');
+    lines.push(cDesc);
+    lines.push('');
+    lines.push(`Limit applied: y_i and y_c,i ≤ h/2 = ${fmt(h/2,1)} mm`);
+
+    info.textContent = lines.join('\n');
+  }
+
   function escapeHtml(str){
     return String(str)
       .replaceAll('&', '&amp;')
@@ -664,6 +852,7 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
       n_l: get('n_l'),
       alpha: get('alpha'),
       delta: get('delta'),
+      limitZ95: (f.elements['limit_z'] ? f.elements['limit_z'].value !== 'off' : true),
       MEd: get('MEd'),
       VEd: get('VEd'),
       NEd: get('NEd'),
@@ -679,9 +868,38 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
     if (inp.delta < 0.70 || inp.delta > 1.00) errors.push('Redistribution δ must be between 0.70 and 1.00.');
     if (inp.ct + inp.cc > inp.h) errors.push('Covers look too large compared to h.');
     if (inp.alpha <= 0 || inp.alpha > 90) errors.push('Angle α should be between 1 and 90 degrees.');
-    return errors;
-  }
 
+    // ---- Geometric limits: bar depths should not exceed half the section depth ----
+    const halfDepth = inp.h / 2;
+
+    // Tension layers: y_i measured from the tension face (bottom)
+    let sumPrevT = 0;
+    inp.tension.forEach((ly, i) => {
+      const y = inp.ct + inp.phi_s + ly.phi/2 + sumPrevT;
+      if (y > halfDepth + 1e-9){
+        errors.push(`Tension layer ${i+1}: y_${i+1} = ${y.toFixed(1)} mm exceeds h/2 = ${halfDepth.toFixed(1)} mm. Reduce cover / bar size / number of layers / inter-layer spacing.`);
+      }
+      // add layer thickness + spacing-to-next (spacing ignored for last layer)
+      if (i < inp.tension.length - 1){
+        sumPrevT += ly.phi + ly.s;
+      }
+    });
+
+    // Compression layers: y_{c,i} measured from the compression face (top)
+    let sumPrevC = 0;
+    inp.compression.forEach((ly, i) => {
+      const y = inp.cc + inp.phi_s + ly.phi/2 + sumPrevC;
+      if (y > halfDepth + 1e-9){
+        errors.push(`Compression layer ${i+1}: y_c,${i+1} = ${y.toFixed(1)} mm exceeds h/2 = ${halfDepth.toFixed(1)} mm. Reduce cover / bar size / number of layers / inter-layer spacing.`);
+      }
+      if (i < inp.compression.length - 1){
+        sumPrevC += ly.phi + ly.s;
+      }
+    });
+
+    return errors;
+  } 
+  
   // ---------- Wire up events ----------
   function init(){
     initTheme();
@@ -709,6 +927,8 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
         </div>
       `;
       $('#details').innerHTML = '';
+      renderSectionPlot(null);
+      lastResults = null;
       $('#status').textContent = 'Reset to defaults.';
       setTimeout(()=>$('#status').textContent='', 2000);
     });
@@ -717,6 +937,10 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
       const body = $('#tensionBody');
       body.appendChild(makeRow('tension', body.children.length+1, {phi: 16, n: 2, s: 25}));
       renumber('tension');
+    });
+
+    window.addEventListener('resize', () => {
+      if (lastResults) renderSectionPlot(lastResults);
     });
 
     $('#addCompressionRow').addEventListener('click', () => {
@@ -743,7 +967,9 @@ Min legs to satisfy s_t,max: n_l,min≈${isFinite(nLegsReqByStMax)?nLegsReqByStM
         const results = compute(inp);
         renderSummary(results);
         renderDetails(results);
-
+        renderSectionPlot(results);
+        lastResults = results;
+        
         status.textContent = 'Done.';
         status.style.color = 'var(--ok)';
         setTimeout(()=>{status.textContent=''; status.style.color='var(--muted)';}, 2500);
